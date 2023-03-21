@@ -1,11 +1,9 @@
 // TODO: Bank
 import { useConnection, useWallet } from '@solana/wallet-adapter-react';
-import { FC, useState } from 'react';
+import { FC, useEffect, useState } from 'react';
 import { Program, AnchorProvider, web3, utils, BN } from "@project-serum/anchor"
 import idl from "./solanapdas.json"
-import { PublicKey } from '@solana/web3.js';
-import useUserSOLBalanceStore from '../stores/useUserSOLBalanceStore';
-
+import { PublicKey, LAMPORTS_PER_SOL } from '@solana/web3.js';
 
 const idl_string = JSON.stringify(idl)
 const idl_object = JSON.parse(idl_string)
@@ -15,10 +13,11 @@ export const Bank: FC = () => {
     const { publicKey, signMessage } = useWallet()
     const { connection } = useConnection()
     const myWallet = useWallet()
-    const balance = useUserSOLBalanceStore((s) => s.balance)
-    const { getUserSOLBalance } = useUserSOLBalanceStore()
 
     const [banks, setBanks] = useState([]) // returns the results in an array, so []
+    const [bankBalance, setbankBalance] = useState<number>();
+
+    useEffect(() => { getBanks() }, [])
 
     const getProvider = () => {
         const provider = new AnchorProvider(connection, myWallet, AnchorProvider.defaultOptions())
@@ -104,7 +103,6 @@ export const Bank: FC = () => {
             )
 
             console.log("Deposit done by: " + publicKey)
-            getUserSOLBalance(publicKey, connection)
 
         } catch (error) {
             console.error("Error while depositing: + " + error) // .error to be visible by the console
@@ -130,11 +128,11 @@ export const Bank: FC = () => {
                     {
                         bank: publicKey,
                         user: myProvider.wallet.publicKey,  // is the signer 
+                        systemProgram: web3.SystemProgram.programId
                     }
                 }
             )
             console.log("Withdraw of " + withAmount + " lamports done by: " + myProvider.wallet.publicKey + " from the bank address: " + publicKey)
-            getUserSOLBalance(publicKey, connection)
 
         } catch (error) {
             console.error("Error while withdrawing: + " + error)
@@ -142,15 +140,43 @@ export const Bank: FC = () => {
 
     }
 
+    async function getBalance(publicKey) {
+        
+        const balance = await connection.getBalance(publicKey)
+        const greet: number = balance / LAMPORTS_PER_SOL
+
+        console.log("This is greet: " + greet)
+        setbankBalance(greet)
+    }
+
     return (
         <> {/* set key in div to avoid error of unique key required*/}
+        <div className="md:hero mx-auto p-0 fixed text-center text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-br from-indigo-50 to-fuchsia-400 mt-1 mb-1">
+                <h1 className="">
+                <b>Selected Bank Balance: </b>{bankBalance}
+                </h1>
+        </div>
+    
             {banks.map((bank) => {
                 return (
-                    <div className="md:hero-content flex flex-col" key={bank.pubkey.toString()}>
+                    <div key={bank.pubkey.toString()} className="md:hero-content flex flex-col">
+                        
                         <h1><b>Bank Name:</b> {bank.name.toString()}</h1>
                         <span><b>Bank Address:</b> {bank.pubkey.toString()}</span>
                         <span><b>Bank Owner:</b> {bank.owner.toString()}</span>
-                        <span><b>Bank Balance:</b> {(balance || 0).toLocaleString()} <b>lamports</b></span>
+                        
+                        <button
+                            className="group w-60 m-2 btn animate-pulse bg-gradient-to-br from-indigo-500 to-fuchsia-500 hover:from-white hover:to-purple-300 text-black"
+                            onClick={() => getBalance(bank.pubkey)}
+                        >
+                            <div className="hidden group-disabled:block">
+                                Wallet not connected
+                            </div>
+                            <span className="block group-disabled:hidden" >
+                                Get Balance
+                            </span>
+                        </button>
+
                         <button
                             className="group w-60 m-2 btn animate-pulse bg-gradient-to-br from-indigo-500 to-fuchsia-500 hover:from-white hover:to-purple-300 text-black"
                             onClick={() => depositBank(bank.pubkey)}
@@ -178,9 +204,6 @@ export const Bank: FC = () => {
                     </div>
                 )
             })}
-
-
-
 
             <div className="flex flex-row justify-center">
                 <>
